@@ -35,11 +35,16 @@ To achieve this configuration, the architecture orchestrates five distinct ident
 5. **Execute Tenant-Wide Administrative Consent:** Inspect the API permissions grid list and note the warning status stating that consent has not been granted for the newly added scope. Click the prominent **Grant admin consent for [Your Tenant Name]** button located directly above the permissions table layout. Click **Yes** on the confirmation prompt window to clear the warning gate, transforming the status indicator into a verified green checkmark, which fully authorizes the daemon's authorization scope across the directory plane.
 
 #### Phase 3: Scoped Graph Authorization & Verification
-1. **Bind App Identity to Resource Target:** Use a local PowerShell console to run a script targeting the Microsoft Graph API (MG-API) endpoint, explicitly granting read permissions for the `AI-Ingestion-Daemon` service principal object strictly against the `Acquisition-Vault-SPO` site collection.
-2. **Validate Path 1 (Human Vector):** Authenticate interactively as `Human-Auditor-User` inside a private browser session and verify that resource entry is successfully granted based on directory role membership.
-3. **Validate Path 2 (Non-Human Vector):** Execute an unsupervised OAuth 2.0 Client Credentials token exchange for `AI-Ingestion-Daemon` via PowerShell. Utilize the resulting Access Token (AT) to query the target SharePoint site metadata programmatically to verify the non-interactive data plane connection.
 
----
+1. **Extract Target Site Collection Metadata Identification:** Open a local PowerShell console or access the web-based Microsoft Graph Explorer interface. Authenticate with tenant global administrator credentials and execute an HTTPS GET request targeting the Microsoft Graph API (MG-API) site utility endpoint to resolve the immutable, tenant-wide site identifier string.
+   ```powershell
+   # Launch an interactive Graph module session with necessary administrative discovery scopes
+   Connect-MgGraph -Scopes "Sites.Read.All"
+
+   # Query the API endpoint to extract the unified, three-part immutable Site ID string
+   $TargetSite = Get-MgSite -SiteId "lab20250106.sharepoint.com:/sites/Acquisition-Vault-SPO"
+   $TargetSite.Id
+   # Record the resulting long output string (format: tenant.sharepoint.com,guid,guid) for use as your $SiteId variable
 
 ### Addendum: Field Engineering Notes
 * *(Use this section to log live configuration adjustments, out-of-order operations, or unexpected permission gates encountered during tenant execution).*
