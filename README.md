@@ -45,6 +45,80 @@ To achieve this configuration, the architecture orchestrates five distinct ident
    $TargetSite = Get-MgSite -SiteId "lab20250106.sharepoint.com:/sites/Acquisition-Vault-SPO"
    $TargetSite.Id
    # Record the resulting long output string (format: tenant.sharepoint.com,guid,guid) for use as your $SiteId variable
+   ```
+
+2. **Execute Graph-Based Scoped Authorization Binding:** Open a fresh administrative PowerShell console. Establish a connection to the directory engine using an authorization scope capable of modifying site access policies. Craft and pass a structured payload to bind the `AI-Ingestion-Daemon` application identity directly to the specific `Acquisition-Vault-SPO` resource site container with explicit read-only privileges.
+   ```powershell
+   # Establish an elevated administrative session to bind the security relationship
+   Connect-MgGraph -Scopes "Sites.FullControl.All"
+
+   # Define initialization variables mapping back to your tenant configurations
+   $SiteId = "PASTE_YOUR_FULL_THREE_PART_SITE_ID_STRING_HERE"
+   $DaemonAppId = "PASTE_YOUR_AI_INGESTION_DAEMON_APPLICATION_CLIENT_ID_HERE"
+
+   # Construct the policy payload targeting the local enterprise Service Principal object
+   $PermissionParams = @{
+       roles = @("read")
+       grantedToIdentitiesV2 = @(
+           @{
+               application = @{
+                   id = $DaemonAppId
+                   displayName = "AI-Ingestion-Daemon"
+               }
+           }
+       )
+   }
+
+   # Execute the command to inject the targeted permission record into the resource data plane
+   New-MgSitePermission -SiteId $SiteId -BodyParameter $PermissionParams
+   ```
+
+3. **Validate Path 1 (Human Interactive Vector Access Test):** Launch a strict, unauthenticated InPrivate browser window to enforce clean session isolation. Navigate directly to the data-plane endpoint `https://lab20250106.sharepoint.com/sites/Acquisition-Vault-SPO`. Provide the unique credentials for the `Human-Auditor-User` account when challenged by the directory interface. Verify that the entry state resolves to a successful read-only display of the site dashboard, and attempt to open the file `document.docx`. Confirm that viewing access is permitted but document deletion, folder creation, and structure edits are strictly blocked by the authorization engine.
+
+4. **Validate Path 2 (Non-Human Automated Programmatic Vector Access Test):** Clear your local PowerShell workspace. Execute the following master deployment verification script to simulate the headless background data pipeline engine. This script performs an unattended OAuth 2.0 Client Credentials token exchange directly against the identity endpoint, extracts an Access Token (AT), and uses it to scrape target file library metadata completely free of human-interactive prompts or multi-factor challenges.
+   ```powershell
+   # -----------------------------------------------------------------------------
+   # Heads-Up Background Pipeline Automation Simulation Script
+   # -----------------------------------------------------------------------------
+   # Populate authorization fields with secrets captured during Phase 2 execution
+   $TenantId     = "PASTE_YOUR_DIRECTORY_TENANT_ID_HERE"
+   $ClientId     = "PASTE_YOUR_AI_INGESTION_DAEMON_APPLICATION_CLIENT_ID_HERE"
+   $ClientSecret = "PASTE_YOUR_CLEAR_TEXT_CLIENT_SECRET_VALUE_HERE"
+   $SiteId       = "PASTE_YOUR_FULL_THREE_PART_SITE_ID_STRING_HERE"
+
+   # Step A: Execute background token acquisition via raw HTTPS REST POST exchange
+   $TokenUri = "[https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token](https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token)"
+   $BodyParams = @{
+       client_id     = $ClientId
+       client_secret = $ClientSecret
+       scope         = "[https://graph.microsoft.com/.default](https://graph.microsoft.com/.default)"
+       grant_type    = "client_credentials"
+   }
+
+   Write-Host "Initiating OAuth 2.0 Client Credentials Grant Exchange against MEID..." -ForegroundColor Cyan
+   $TokenResponse = Invoke-RestMethod -Uri $TokenUri -Method Post -ContentType "application/x-www-form-urlencoded" -Body $BodyParams
+   $AccessToken   = $TokenResponse.access_token
+
+   # Step B: Attach the retrieved Access Token (AT) to the header and pull data plane asset metadata
+   $AuthHeader = @{
+       Authorization = "Bearer $AccessToken"
+   }
+
+   $GraphUri = "[https://graph.microsoft.com/v1.0/sites/$SiteId/drive/root/children](https://graph.microsoft.com/v1.0/sites/$SiteId/drive/root/children)"
+   Write-Host "Transmitting non-interactive Access Token to target SharePoint asset library..." -ForegroundColor Cyan
+   $LibraryContents = Invoke-RestMethod -Uri $GraphUri -Method Get -Headers $AuthHeader
+
+   # Step C: Parse and display data pipeline extraction results to confirm connection
+   Write-Host "`n[Ingestion Pipeline Extraction Success Outcome]" -ForegroundColor Green
+   foreach ($Item in $LibraryContents.value) {
+       [PSCustomObject]@{
+           "Asset Name"       = $Item.name
+           "Asset ID"         = $Item.id
+           "Size (Bytes)"     = $Item.size
+           "Last Modified By" = $Item.lastModifiedBy.user.displayName
+       } | Format-List
+   }
+   ```
 
 ### Addendum: Field Engineering Notes
 * *(Use this section to log live configuration adjustments, out-of-order operations, or unexpected permission gates encountered during tenant execution).*
