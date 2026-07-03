@@ -120,10 +120,32 @@ To achieve this configuration, the architecture orchestrates five distinct ident
    }
    ```
 
-### Addendum: Field Engineering Notes
-* *(Use this section to log live configuration adjustments, out-of-order operations, or unexpected permission gates encountered during tenant execution).*
+
+#### Lab Results & Verification Outcomes
+
+##### Project Executive Summary
+This lab successfully established and verified a zero-trust, isolated data extraction architecture for the secure document repository **Acquisition-Vault-SPO**. The primary engineering objective was to construct exactly two independent, strictly confined access pathways into this specific folder structure while ensuring that the rest of the corporate tenant remained entirely hidden from both identities. This pattern mirrors the precise foundational setup used to deploy secure, headless AI ingestion daemons across enterprise cloud environments.
 
 ---
 
-### Lab Results & Verification Outcomes
-* *(Use this section to document the final successful token verification strings, confirmed access logs, and final repository outcomes).*
+##### 1. The Labeled Identities & Configurations (What & How)
+To accomplish complete separation of duties, the directory plane was configured with two distinct security principals:
+
+* **The Human Vector (Human-Auditor-User):** An independent user account created natively in Microsoft Entra ID. This identity was assigned a low-level directory monitoring role and explicitly added directly to the SharePoint site collection’s access list as a standard "Site Visitor."
+* **The Non-Human Machine Vector (AI-Ingestion-Daemon):** A dedicated Application Registration configured without an interactive Redirect URI to maintain a secure background posture. This identity does not use passwords; instead, it relies on an OAuth 2.0 Client Credentials configuration utilizing a secure **Application Client ID** and a hidden cryptographic **Client Secret** key to authenticate programmatically.
+* **The Scoped API Binding Layer:** Using the administrative PowerShell console, the modern Microsoft Graph API granular authorization framework (`Sites.Selected`) was executed. By passing the unique, three-part immutable serial number of the SharePoint site collection, a hard security permission record was injected to grant the background daemon read-only rights to this specific location, leaving it completely blind to all other corporate files.
+
+---
+
+##### 2. Core Engineering Rationales (Why)
+* **Elimination of Interactive Prompts:** By utilizing application permissions instead of delegated permissions for the daemon, the system avoids human interactive login prompts. This allows background processing scripts to run automated data ingestion routines seamlessly around the clock.
+* **Attack Surface Minimization:** Leaving the application registration’s Redirect URI completely blank ensures that the non-human machine identity can never be hijacked or manipulated into routing interactive user tokens to an external attacker.
+* **Granular Principle of Least Privilege:** Using `Sites.Selected` ensures that even if the daemon's client secret were ever compromised, the blast radius is restricted entirely to this single site collection. The daemon has zero lateral visibility into other tenant assets, emails, or user profiles.
+
+---
+
+##### 3. Lab Verification Results
+Both pathways were thoroughly tested and validated as fully operational:
+
+* **Path 1 Verification (Success):** Manual authentication as the `Human-Auditor-User` inside a clean, unauthenticated InPrivate browser session confirmed immediate visual read-only access to the document vault. File viewing was fully permitted, while all actions to delete, modify, or add items were strictly blocked.
+* **Path 2 Verification (Success):** Execution of a headless background pipeline simulation script utilizing the application credentials successfully bypasses all user interaction. The script hit the token authority endpoint, obtained a cryptographic Access Token, matched the custom SharePoint site permission record via the Microsoft Graph API, and instantly extracted the target file metadata (`Document.docx`) with zero interactive interference.
